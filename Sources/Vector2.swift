@@ -6,7 +6,12 @@
 //  Copyright (c) 2014 Luiz Fernando Silva. All rights reserved.
 //
 
-import simd
+#if canImport(simd)
+ import simd
+#endif
+#if canImport(WASILibc)
+    import WASILibc
+#endif
 
 /// Specifies an object that can be expressed as a pair of x-y coordinates
 public protocol VectorRepresentable {
@@ -14,7 +19,7 @@ public protocol VectorRepresentable {
     var vector: Vector2 { get }
 }
 
-#if arch(x86_64) || arch(arm64)
+#if arch(x86_64) || arch(arm64) || arch(wasm32)
 /// Represents the standard floating point type used by JelloSwift.
 /// It is a double precision floating point in 64-bits platforms, and
 /// single-precision in 32-bit platforms.
@@ -30,7 +35,88 @@ public typealias JFloat = Double
 public typealias JFloat = Float
 #endif
 
-#if !DEBUG
+#if !DEBUG2
+
+#if !canImport(simd)
+public struct simd_double3x3 {
+
+    public var columns: (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>)
+
+    public init(_ value: Double) {
+        columns = (
+            SIMD3<Double>(value, 0, 0),
+            SIMD3<Double>(0, value, 0),
+            SIMD3<Double>(0, 0, value)
+        )
+    }
+
+    public init(columns: (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>)) {
+        self.columns = columns
+    }
+
+    subscript(index: Int) -> SIMD3<Double> {
+        get {
+            switch index {
+                case 0: return columns.0
+                case 1: return columns.1
+                case 2: return columns.2
+                default: fatalError()
+            }
+        }
+        set {
+            switch index {
+                case 0: columns.0 = newValue
+                case 1: columns.1 = newValue
+                case 2: columns.2 = newValue
+                default: fatalError()
+            }
+        }
+    }
+
+    public static func *= (lhs: inout simd_double3x3, rhs: Double) {
+        fatalError()
+    }
+
+//    public static func * (lhs: simd_double3x3, rhs: Double) -> Double {
+//        fatalError()
+//    }
+
+    public static func *= (lhs: inout simd_double3x3, rhs: simd_double3x3) {
+//        print(#function, lhs, rhs)
+        var out = simd_double3x3(0)
+        (0..<3).forEach { i in
+            (0..<3).forEach { j in
+                (0..<3).forEach { k in
+                    out[i][j] += lhs[i][k] * rhs[k][j]
+                }
+            }
+        }
+        lhs = out
+    }
+
+    public static func * (lhs: SIMD3<Double>, rhs: simd_double3x3) -> SIMD3<Double> {
+//        print(#function, lhs, rhs)
+        // dunno
+        var out = SIMD3<Double>()
+        (0..<3).forEach { i in
+            (0..<3).forEach { j in
+                out[i] += lhs[j] * rhs[i][j]
+            }
+        }
+        return out
+    }
+}
+
+extension simd_double3x3: Comparable {
+    public static func < (lhs: simd_double3x3, rhs: simd_double3x3) -> Bool {
+        fatalError()
+    }
+
+    public static func == (lhs: simd_double3x3, rhs: simd_double3x3) -> Bool {
+        fatalError()
+    }
+}
+#endif
 
 /// Represents a 2D vector
 public struct Vector2: VectorRepresentable, Equatable, CustomStringConvertible, Codable {
@@ -45,13 +131,14 @@ public struct Vector2: VectorRepresentable, Equatable, CustomStringConvertible, 
     /// Aliast for 'unit'.
     public static let one = unit
     
-    #if arch(x86_64) || arch(arm64)
+    #if arch(x86_64) || arch(arm64) || arch(wasm32) 
     /// Used to match `JFloat`'s native type
     public typealias NativeVectorType = SIMD2<Double>
     
     /// The 3x3 matrix type that can be used to apply transformations by
     /// multiplying on this Vector2
-    public typealias NativeMatrixType = double3x3
+//    public typealias NativeMatrixType = SIMD3<Double> //double3x3
+    public typealias NativeMatrixType = simd_double3x3
     
     /// This is used during affine transformation
     public typealias HomogenousVectorType = SIMD3<Double>
@@ -102,14 +189,17 @@ public struct Vector2: VectorRepresentable, Equatable, CustomStringConvertible, 
     /// Returns the squared length of this Vector2
     @inlinable
     public var length : JFloat {
-        return length_squared(theVector)
+        pow(theVector.x, 2) + pow(theVector.y, 2)
+//        fatalError()
+//        return length_squared(theVector)
     }
     
     /// Returns the magnitude (or square root of the squared length) of this 
     /// Vector2
     @inlinable
     public var magnitude : JFloat {
-        return simd.length(theVector)
+        sqrt(pow(theVector.x, 2) + pow(theVector.y, 2))
+//        return simd.length(theVector)
     }
     
     /// For conformance to VectorRepresentable - always returns self
@@ -161,13 +251,19 @@ public struct Vector2: VectorRepresentable, Equatable, CustomStringConvertible, 
     /// Returns the distance between this Vector2 and another Vector2
     @inlinable
     public func distance(to vec: Vector2) -> JFloat {
-        return simd.distance(self.theVector, vec.theVector)
+//        print(#function, vec)
+        return (self - vec).magnitude
+//        return simd.distance(self.theVector, vec.theVector)
     }
     
     /// Returns the distance squared between this Vector2 and another Vector2
     @inlinable
     public func distanceSquared(to vec: Vector2) -> JFloat {
+        #if canImport(simd)
         return distance_squared(self.theVector, vec.theVector)
+        #else
+        return (self - vec).length
+        #endif
     }
     
     /// Makes this Vector2 perpendicular to its current position.
@@ -195,7 +291,11 @@ public struct Vector2: VectorRepresentable, Equatable, CustomStringConvertible, 
     /// Returns a normalized version of this Vector2
     @inlinable
     public func normalized() -> Vector2 {
-        return Vector2(simd.normalize(theVector))
+//        print(#function, self)
+        let l = magnitude
+        return Vector2(x: x / l, y: y / l)
+//        fatalError()
+//        return Vector2(simd.normalize(theVector))
     }
 }
 
@@ -204,7 +304,9 @@ extension Vector2 {
     /// Calculates the dot product between this and another provided Vector2
     @inlinable
     public func dot(_ other: Vector2) -> JFloat {
-        return simd.dot(theVector, other.theVector)
+//        print(#function, self.theVector, other.theVector)
+        return (theVector.x * other.theVector.x ) + (theVector.y * other.theVector.y)
+//        return simd.dot(theVector, other.theVector)
     }
     
     /// Calculates the cross product between this and another provided Vector2.
@@ -213,7 +315,11 @@ extension Vector2 {
     /// the 'z' coordinate being 0.
     @inlinable
     public func cross(_ other: Vector2) -> JFloat {
+        #if canImport(simd)
         return simd.cross(theVector, other.theVector).z
+        #else
+        return theVector.x * other.theVector.y - theVector.y * other.theVector.x
+        #endif
     }
 }
 
@@ -385,6 +491,39 @@ extension Vector2 {
 @usableFromInline
 let _identityMatrix = Vector2.NativeMatrixType(1)
 
+//public extension Vector2.HomogenousVectorType {
+//    init(_ a: Double, _ c: Double, _ b: Double) {
+//        fatalError()
+//    }
+//}
+
+public extension Vector2.NativeMatrixType {
+    init(columns elements: (Vector2.NativeMatrixType, Vector2.NativeMatrixType, Vector2.NativeMatrixType)) {
+        fatalError()
+    }
+}
+
+public func min(_ lhs: SIMD2<Double>, _ rhs: SIMD2<Double>) -> SIMD2<Double> {
+//    print(#function, lhs, rhs)
+    return SIMD2<Double>.init(
+        min(lhs.x, rhs.x),
+        min(lhs.y, rhs.y)
+    )
+}
+public func max(_ lhs: SIMD2<Double>, _ rhs: SIMD2<Double>) -> SIMD2<Double> {
+//    print(#function, lhs, rhs)
+    return SIMD2<Double>.init(
+        max(lhs.x, rhs.x),
+        max(lhs.y, rhs.y)
+    )
+}
+
+//extension Vector2.NativeVectorType: Comparable {
+//    public static func < (lhs: SIMD2<Scalar>, rhs: SIMD2<Scalar>) -> Bool {
+//        fatalError()
+//    }
+//}
+
 // MARK: Matrix-transformation
 extension Vector2 {
     
@@ -416,7 +555,7 @@ extension Vector2 {
                 (Vector2.HomogenousVectorType(scale.theVector.x, 0, 0),
                  Vector2.HomogenousVectorType(0, scale.theVector.y, 0),
                  Vector2.HomogenousVectorType(0, 0, 1)))
-        
+
         matrix *= cScale
         
         // Rotation:
@@ -573,42 +712,42 @@ infix operator =/ : MultiplicationPrecedence
 
 @inlinable
 public func round(_ x: Vector2) -> Vector2 {
-    return Vector2(x: round(x.x), y: round(x.y))
+    return Vector2(x: x.x.rounded(), y: x.y.rounded())
 }
 
 @inlinable
 public func ceil(_ x: Vector2) -> Vector2 {
-    return Vector2(ceil(x.theVector))
+    return Vector2(x.theVector.rounded(.up))
 }
 
 @inlinable
 public func floor(_ x: Vector2) -> Vector2 {
-    return Vector2(floor(x.theVector))
+    return Vector2(x.theVector.rounded(.down))
 }
 
 @inlinable
 public func abs(_ x: Vector2) -> Vector2 {
-    return Vector2(abs(x.theVector))
+    return Vector2(x: abs(x.theVector.x), y: abs(x.theVector.y))
 }
 
-extension Vector2.NativeMatrixType: Codable {
-    public init(from decoder: Decoder) throws {
-        var container = try decoder.unkeyedContainer()
-        
-        try self.init([
-            container.decode(Vector2.HomogenousVectorType.self),
-            container.decode(Vector2.HomogenousVectorType.self),
-            container.decode(Vector2.HomogenousVectorType.self)
-        ])
-    }
-    
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.unkeyedContainer()
-        
-        try container.encode(self.columns.0)
-        try container.encode(self.columns.1)
-        try container.encode(self.columns.2)
-    }
-}
+//extension Vector2.NativeMatrixType: Codable {
+//    public init(from decoder: Decoder) throws {
+//        var container = try decoder.unkeyedContainer()
+//
+//        try self.init([
+//            container.decode(Vector2.HomogenousVectorType.self),
+//            container.decode(Vector2.HomogenousVectorType.self),
+//            container.decode(Vector2.HomogenousVectorType.self)
+//        ])
+//    }
+//
+//    public func encode(to encoder: Encoder) throws {
+//        var container = encoder.unkeyedContainer()
+//
+//        try container.encode(self.columns.0)
+//        try container.encode(self.columns.1)
+//        try container.encode(self.columns.2)
+//    }
+//}
 
 #endif

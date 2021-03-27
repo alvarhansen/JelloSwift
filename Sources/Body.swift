@@ -10,6 +10,8 @@
     import Darwin.C
 #elseif os(Linux)
     import Glibc
+#elseif canImport(WASILibc)
+    import WASILibc
 #endif
 
 /// Performs a reference-equality against two Body instances.

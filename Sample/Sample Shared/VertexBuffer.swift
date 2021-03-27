@@ -14,7 +14,7 @@ import CoreGraphics
 
 // MARK: Vector3
 
-#if DEBUG
+#if DEBUG2
 // TODO: Once Swift gets inlining SIMD in debug mode, remove this Vector3 struct
 // in favor of SIMD structures
 

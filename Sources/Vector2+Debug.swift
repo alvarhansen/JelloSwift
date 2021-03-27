@@ -6,12 +6,12 @@
 //  Copyright (c) 2014 Luiz Fernando Silva. All rights reserved.
 //
 
-import simd
 
 // TODO: Once Swift gets inlining SIMD in debug mode, remove this stopgap
 // implementation
 
-#if DEBUG
+#if DEBUG2
+import simd
 
 /// Represents a 2D vector
 public struct Vector2: VectorRepresentable, Equatable, CustomStringConvertible, Codable {

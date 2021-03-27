@@ -10,6 +10,8 @@
     import Darwin.C
 #elseif os(Linux)
     import Glibc
+#elseif canImport(WASILibc)
+    import WASILibc
 #endif
 
 /// Represents a joint link that links to multiple point masses of a body
